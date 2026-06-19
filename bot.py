@@ -201,19 +201,21 @@ class QuizAnswerModal(Modal):
             await interaction.response.send_message("あなたはクイズに参加登録していません。", ephemeral=True)
             return
 
-        if user_id in self.session.answers:
-            await interaction.response.send_message("すでに回答を送信しています。変更はできません。", ephemeral=True)
-            return
+        # 変更の検知
+        old_ans = self.session.answers.get(user_id)
 
         # 回答を記録
         self.session.answers[user_id] = answer_text
         
         # ウルト発動ステータスを含むテキスト
         ult_active_text = " (⚡ウルト適用中！)" if user_id in self.session.active_ult_this_turn else ""
-        await interaction.response.send_message(f"回答「{answer_text}」を送信しました！{ult_active_text}", ephemeral=True)
+        
+        if old_ans is not None:
+            await interaction.response.send_message(f"回答を「{old_ans}」から「{answer_text}」に変更しました！{ult_active_text}", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"回答「{answer_text}」を送信しました！{ult_active_text}", ephemeral=True)
 
         # チャンネル画面の回答状況表示を更新
-        # 呼び出し元がViewなので、sessionに保存されているメッセージを編集する
         question_view = QuizQuestionView(self.session)
         await question_view.update_question_message()
 
@@ -358,15 +360,21 @@ class QuizQuestionView(View):
                 await interaction.response.send_message("あなたはクイズに参加登録していません。", ephemeral=True)
                 return
 
-            if user_id in self.session.answers:
-                await interaction.response.send_message("すでに回答を送信しています。変更はできません。", ephemeral=True)
-                return
+            # 変更の検知
+            old_ans = self.session.answers.get(user_id)
 
             # 回答を記録
             self.session.answers[user_id] = choice_num
             
             ult_active_text = " (⚡ウルト適用中！)" if user_id in self.session.active_ult_this_turn else ""
-            await interaction.response.send_message(f"選択肢 {choice_num} を選択しました！{ult_active_text}", ephemeral=True)
+            
+            if old_ans is not None:
+                if old_ans == choice_num:
+                    await interaction.response.send_message(f"すでに選択肢 {choice_num} を選択しています。{ult_active_text}", ephemeral=True)
+                else:
+                    await interaction.response.send_message(f"回答を 選択肢 {old_ans} から 選択肢 {choice_num} に変更しました！{ult_active_text}", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"選択肢 {choice_num} を選択しました！{ult_active_text}", ephemeral=True)
             
             await self.update_question_message()
 
@@ -384,12 +392,12 @@ class QuizQuestionView(View):
             await interaction.response.send_message("あなたはクイズに参加登録していません。", ephemeral=True)
             return
 
-        if user_id in self.session.answers:
-            await interaction.response.send_message("すでに回答を送信しています。変更はできません。", ephemeral=True)
-            return
-
         # モーダルのポップアップを表示
         modal = QuizAnswerModal(self.session)
+        # もしすでに回答があれば、テキスト入力の初期値として設定する
+        if user_id in self.session.answers:
+            modal.answer_input.default = self.session.answers[user_id]
+            
         await interaction.response.send_modal(modal)
 
     async def use_ult_callback(self, interaction: discord.Interaction):
@@ -397,10 +405,6 @@ class QuizQuestionView(View):
 
         if user_id not in self.session.participants:
             await interaction.response.send_message("あなたはクイズに参加登録していません。", ephemeral=True)
-            return
-
-        if user_id in self.session.answers:
-            await interaction.response.send_message("すでに回答を送信したため、この問題ではウルトを発動できません。", ephemeral=True)
             return
 
         if user_id in self.session.active_ult_this_turn:

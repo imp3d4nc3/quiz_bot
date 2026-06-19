@@ -602,6 +602,25 @@ class QuizQuestionView(View):
 
         await channel.send(embed=reveal_embed)
 
+        # 出題者に問題の正解者結果をDMで送信
+        try:
+            dm_correct_mentions = "\n".join([f"- {text}" for text in correct_users_text]) if correct_users_text else "なし"
+            dm_wrong_mentions = "\n".join([f"- {text}" for text in wrong_users_text]) if wrong_users_text else "なし"
+            
+            dm_content = (
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📢 **第 {self.session.current_question_index} 問の正解者結果**\n"
+                f"問題: **{self.session.current_question_text}**\n"
+                f"正解 (模範解答): {correct_ans_preview}\n\n"
+                f"⭕ **正解したプレイヤー**:\n{dm_correct_mentions}\n\n"
+                f"❌ **不正解だったプレイヤー**:\n{dm_wrong_mentions}\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            )
+            await self.session.host.send(content=dm_content)
+        except Exception as e:
+            print(f"Failed to send result DM to host: {e}")
+
+
         # ターンで使用したウルト状態をクリア
         self.session.active_ult_this_turn.clear()
 
